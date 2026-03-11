@@ -1,5 +1,7 @@
 from pydantic import BaseModel, field_validator
-from fastapi import FastAPI,Query
+from fastapi import FastAPI,Query,Depends
+from sqlalchemy.orm  import Session
+from database import get_db
 
 
 
@@ -29,12 +31,11 @@ def health_check():
 
 # post request
 
-
 @app.post("/users", status_code=201, response_model=UserResponse)
-def create_user(user: UserCreate):
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
     return {"email": user.email}
 
-@app.get("/users{user_id}")
+@app.get("/users/{user_id}")
 def get_user(user_id : int ):
     return{
         "user_id":user_id
