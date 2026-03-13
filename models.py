@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.orm import DeclarativeBase
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
@@ -12,4 +13,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     email = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc)
+    )

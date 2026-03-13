@@ -1,30 +1,24 @@
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+load_dotenv()
 
-DATABASE_URL = ""
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create engine (connection manager)
 engine = create_engine(DATABASE_URL)
 
-# Session factory
-SessionLocal = sessionmaker(bind=engine)
-# create database session
-# ↓
-# give it to the endpoint
-# ↓
-# endpoint finishes
-# ↓
-# close database session
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
-
-# Dependency function will be added next
 
 def get_db():
-    # creating a session for theis requerst 
-    db=SessionLocal()
+    db = SessionLocal()
     try:
-        yield db 
+        yield db
     finally:
         db.close()
+
+
+print(DATABASE_URL)
