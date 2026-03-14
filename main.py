@@ -1,47 +1,55 @@
-from pydantic import BaseModel, field_validator
-from fastapi import FastAPI,Query,Depends
-from sqlalchemy.orm  import Session
-from database import get_db
+from fastapi import FastAPI, Query, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from database import get_db, engine
+from models import Base, User
+from schemas import UserCreate, UserResponse
 
 
-
-
-class UserCreate(BaseModel):
-    email: str
-
-
-
-    @field_validator('email')
-    @classmethod
-    def validate_email(cls,value):
-        if '@' not in value:
-            raise ValueError('Invalid Email')
-        return value
-# creating a userreposne class 
-class UserResponse(BaseModel):
-    email:str
-    
 app = FastAPI()
+Base.metadata.create_all(bind=engine)
 
 
+# health endpoint
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
 
-# post request
-
 @app.post("/users", status_code=201, response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    return {"email": user.email}
+    """
+    Create a new user in the database.
+
+    Flow:
+    Client JSON → UserCreate validation → create ORM User →
+    db.add() → db.commit() → db.refresh() → return user.
+
+    The database enforces the unique email constraint.
+    Duplicate emails raise an IntegrityError which is returned
+    as a 409 Conflict response.
+    """
+
+    new_user = User(email=user.email)
+
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Email already exists")
+
 
 @app.get("/users/{user_id}")
-def get_user(user_id : int ):
-    return{
-        "user_id":user_id
-    }
+def get_user(user_id: int):
+    return {"user_id": user_id}
+
+
 @app.get("/notes")
-def get_notes(page:int=Query(default=1,ge=1),limit:int=Query(default=1,ge=1, le=100)):
-    return{
-        "page":page, "limit":limit
-    }
+def get_notes(
+    page: int = Query(default=1, ge=1), limit: int = Query(default=1, ge=1, le=100)
+):
+    return {"page": page, "limit": limit}
