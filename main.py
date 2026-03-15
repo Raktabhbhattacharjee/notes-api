@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db, engine
-from models import Base, User
-from schemas import UserCreate, UserResponse
+from models import Base, User, Note
+from schemas import UserCreate, UserResponse,NoteCreate,NoteResponse
 
 
 # -------------------------------------------------------------
@@ -191,3 +191,62 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         )
 
     return user
+
+@app.post("/notes", response_model=NoteResponse, status_code=201)
+def create_note(note: NoteCreate, db: Session = Depends(get_db)):
+    """
+    Create a new note.
+
+    Flow:
+        Client sends note data
+        ↓
+        Pydantic validates request body (NoteCreate)
+        ↓
+        Check if the owner user exists
+        ↓
+        Create ORM Note object
+        ↓
+        Add object to DB session
+        ↓
+        Commit transaction
+        ↓
+        Refresh ORM instance
+        ↓
+        Return created note
+
+    Why check user first?
+        The `notes.owner_id` column has a foreign key constraint
+        referencing `users.id`.
+
+        Instead of letting the database throw a constraint error,
+        we check the user explicitly and return a clear API error.
+
+    Error Handling:
+        If something unexpected happens during commit,
+        the transaction is rolled back and the API returns
+        a 500 error.
+    """
+
+    user = db.query(User).filter(User.id == note.owner_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_note = Note(
+        title=note.title,
+        content=note.content,
+        owner_id=note.owner_id
+    )
+
+    try:
+        db.add(new_note)
+        db.commit()
+        db.refresh(new_note)
+        return new_note
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Could not create note"
+        )
