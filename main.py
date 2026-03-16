@@ -1,5 +1,5 @@
 # -------------------------------------------------------------
-# NOTE TO SELF
+# Note TO SELF
 #
 # `User` and `user` are NOT the same thing.
 #
@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 
 from database import get_db, engine
 from models import Base, User, Note
-from schemas import UserCreate, UserResponse,NoteCreate,NoteResponse
+from schemas import UserCreate, UserResponse, NoteCreate, NoteResponse
 
 
 # -------------------------------------------------------------
@@ -94,10 +94,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         # If DB constraint fails, rollback transaction
         db.rollback()
 
-        raise HTTPException(
-            status_code=409,
-            detail="Email already exists"
-        )
+        raise HTTPException(status_code=409, detail="Email already exists")
 
 
 # =============================================================
@@ -145,9 +142,9 @@ def list_users(
     # Query database with pagination
     users = (
         db.query(User)
-        .order_by(User.id)   # stable ordering
-        .offset(offset)      # skip rows
-        .limit(limit)        # number of rows to return
+        .order_by(User.id)  # stable ordering
+        .offset(offset)  # skip rows
+        .limit(limit)  # number of rows to return
         .all()
     )
 
@@ -185,12 +182,10 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
     # Handle case where user does not exist
     if user is None:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=404, detail="User not found")
 
     return user
+
 
 @app.post("/notes", response_model=NoteResponse, status_code=201)
 def create_note(note: NoteCreate, db: Session = Depends(get_db)):
@@ -232,11 +227,7 @@ def create_note(note: NoteCreate, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_note = Note(
-        title=note.title,
-        content=note.content,
-        owner_id=note.owner_id
-    )
+    new_note = Note(title=note.title, content=note.content, owner_id=note.owner_id)
 
     try:
         db.add(new_note)
@@ -246,7 +237,107 @@ def create_note(note: NoteCreate, db: Session = Depends(get_db)):
 
     except Exception:
         db.rollback()
+        raise HTTPException(status_code=500, detail="Could not create note")
+
+
+@app.get("/notes/{note_id}", response_model=NoteResponse)
+def get_note(note_id: int, db: Session = Depends(get_db)):
+    """
+    Fetch a single note by ID.
+
+    Flow:
+        Client sends note_id in URL
+        ↓
+        Query notes table
+        ↓
+        If note exists → return note
+        If note missing → return 404
+
+    Query Pattern:
+        db.query(Note)
+        .filter(Note.id == note_id)
+        .first()
+
+    `.first()` returns:
+        - the first matching row
+        - or None if nothing exists
+    """
+
+    note = db.query(Note).filter(Note.id == note_id).first()
+
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    return note
+
+
+@app.get("/notes", response_model=list[NoteResponse])
+def list_notes(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+
+    offset = (page - 1) * limit
+    notes = db.query(Note).order_by(Note.id).offset(offset).limit(limit).all()
+    return notes
+
+
+@app.get("/users/{user_id}/notes", response_model=list[NoteResponse])
+def get_user_notes(
+    user_id: int,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """
+    Return a paginated list of notes belonging to a specific user.
+
+    Flow:
+        Client sends user_id in URL
+        ↓
+        Check if user exists
+        ↓
+        If user missing → 404
+        ↓
+        Compute pagination offset
+        ↓
+        Query notes where owner_id == user_id
+        ↓
+        Return paginated note list
+
+    Why check user first?
+        This is a nested resource:
+            /users/{user_id}/notes
+
+        The parent resource is `user`.
+        If the parent does not exist, the nested path should return 404.
+
+    Why return [] if no notes?
+        Because the user exists, but their notes collection may be empty.
+    """
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not user:
         raise HTTPException(
-            status_code=500,
-            detail="Could not create note"
+            status_code=404,
+            detail="User not found"
         )
+
+    offset = (page - 1) * limit
+
+    notes = (
+        db.query(Note)
+        .filter(Note.owner_id == user_id)
+        .order_by(Note.id)
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return notes
