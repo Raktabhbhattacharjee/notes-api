@@ -336,7 +336,7 @@ def get_user_notes(
     return notes
 
 
-@app.delete("/notes{note_id}", status_code=204)
+@app.delete("/notes/{note_id}", status_code=204)
 def delete_note(note_id: int, db: Session = Depends(get_db)):
     note = db.query(Note).filter(Note.id == note_id).first()
     """
@@ -370,5 +370,5 @@ Error Handling:
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-        db.delete(note)
-        db.commit()
+    db.delete(note)
+    db.commit()
