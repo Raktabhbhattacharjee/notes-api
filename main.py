@@ -317,17 +317,10 @@ def get_user_notes(
         Because the user exists, but their notes collection may be empty.
     """
 
-    user = (
-        db.query(User)
-        .filter(User.id == user_id)
-        .first()
-    )
+    user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=404, detail="User not found")
 
     offset = (page - 1) * limit
 
@@ -341,3 +334,41 @@ def get_user_notes(
     )
 
     return notes
+
+
+@app.delete("/notes{note_id}", status_code=204)
+def delete_note(note_id: int, db: Session = Depends(get_db)):
+    note = db.query(Note).filter(Note.id == note_id).first()
+    """
+Delete a note by its ID.
+
+Flow:
+    Client sends a DELETE request with note_id in the path
+    ↓
+    Extract note_id from request
+    ↓
+    Query the database to find the note
+    ↓
+    If note does not exist → raise 404 error
+    ↓
+    If note exists → delete the note from the database
+    ↓
+    Commit the transaction
+    ↓
+    Return 204 No Content (successful deletion)
+
+Why:
+    We first check if the note exists to return a proper 404 response.
+    Directly deleting without checking would not tell us whether
+    the resource actually existed or not.
+
+Error Handling:
+    If the note with given ID is not found,
+    the API returns a 404 Not Found error.
+"""
+
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+        db.delete(note)
+        db.commit()
