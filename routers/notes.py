@@ -1,103 +1,64 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Note, User
-from datetime import datetime
+from schemas.note import NoteCreate, NoteResponse
+from services import note_service
+from exceptions import NoteNotFoundError,UserNotFoundError
 
 router = APIRouter(prefix="/notes", tags=["Notes"])
 
-# ------------------------------
-# CREATE NOTE
-# ------------------------------
-@router.post("/", status_code=201)
-def create_note(title: str, content: str, owner_id: int, db: Session = Depends(get_db)):
+
+@router.post("/", status_code=201, response_model=NoteResponse)
+def create_note(note_data: NoteCreate, db: Session = Depends(get_db)):
     """
-    Create a new note for a given user.
+    Create a new note.
+
+    - Pydantic validates request body before this runs
+    - Service checks if owner exists first → 404 if not
+    - owner_id links note to a user (foreign key → users.id)
     """
-    # Check if user exists
-    user = db.query(User).filter(User.id == owner_id).first()
-    if not user:
+    try:
+        return note_service.create_note(
+            db, note_data.title, note_data.content, note_data.owner_id
+        )
+    except UserNotFoundError:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_note = Note(title=title, content=content, owner_id=owner_id)
-    db.add(new_note)
-    db.commit()
-    db.refresh(new_note)
-    return new_note
 
-
-# ------------------------------
-# LIST NOTES (PAGINATED)
-# ------------------------------
-@router.get("/")
+@router.get("/", response_model=list[NoteResponse])
 def list_notes(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     """
-    Return paginated list of notes.
+    Return paginated list of all notes.
+
+    - page starts at 1, limit max is 100
+    - ordering and offset handled in service
     """
-    offset = (page - 1) * limit
-    notes = db.query(Note).order_by(Note.id).offset(offset).limit(limit).all()
-    return notes
+    return note_service.list_notes(db, page, limit)
 
 
-# ------------------------------
-# GET SINGLE NOTE
-# ------------------------------
-@router.get("/{note_id}")
+@router.get("/{note_id}", response_model=NoteResponse)
 def get_note(note_id: int, db: Session = Depends(get_db)):
     """
     Fetch a single note by ID.
+
+    - note_id comes from URL path e.g. /notes/3
+    - Service raises NoteNotFoundError if missing → 404
     """
-    note = db.query(Note).filter(Note.id == note_id).first()
-    if not note:
+    try:
+        return note_service.get_note_by_id(db, note_id)
+    except NoteNotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")
-    return note
 
 
-# ------------------------------
-# GET NOTES FOR SPECIFIC USER
-# ------------------------------
-@router.get("/user/{user_id}")
-def get_user_notes(
+@router.get("/user/{user_id}", response_model=list[NoteResponse])
+def get_notes_by_user(
     user_id: int,
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    """
-    Return a paginated list of notes belonging to a specific user.
-    """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    offset = (page - 1) * limit
-    notes = (
-        db.query(Note)
-        .filter(Note.owner_id == user_id)
-        .order_by(Note.id)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-    return notes
-
-
-# ------------------------------
-# DELETE NOTE
-# ------------------------------
-@router.delete("/{note_id}", status_code=204)
-def delete_note(note_id: int, db: Session = Depends(get_db)):
-    """
-    Delete a note by ID.
-    """
-    note = db.query(Note).filter(Note.id == note_id).first()
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
-
-    db.delete(note)
-    db.commit()
-    return
+    return note_service.get_notes_by_user(db, user_id, page, limit)

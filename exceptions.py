@@ -14,3 +14,8 @@ class UserNotFoundError(Exception):
     Caught by the router → returned as 404 Not Found
     """
     pass
+
+
+
+class NoteNotFoundError(Exception):
+    pass
