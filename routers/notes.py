@@ -30,6 +30,7 @@ def list_notes(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    search:str|None=Query(None)
 ):
     """
     Return paginated list of all notes.
@@ -37,7 +38,7 @@ def list_notes(
     - page starts at 1, limit max is 100
     - ordering and offset handled in service
     """
-    return note_service.list_notes(db, page, limit)
+    return note_service.list_notes(db, page, limit,search)
 
 
 @router.get("/{note_id}", response_model=NoteResponse)

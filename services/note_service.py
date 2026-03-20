@@ -37,17 +37,26 @@ def get_note_by_id(db: Session, note_id: int) -> Note:
     return note
 
 
-def list_notes(db: Session, page: int, limit: int) -> list[Note]:
+def list_notes(db: Session, page: int, limit: int, search: str | None = None) -> list[Note]:
     """
     SELECT * FROM notes
+    WHERE title ILIKE '%search%'   -- only if search param is provided
     ORDER BY id
     LIMIT :limit OFFSET :offset;
 
+    - search is optional -- if not passed, returns all notes
+    - ILIKE means case insensitive, so 'quantum' matches 'Quantum Notes'
     - offset = (page - 1) * limit calculated here
-    - Returns empty list if no rows — not an error
+    - query is built step by step -- filter only added if search exists
+    - Returns empty list if no rows -- not an error
     """
     offset = (page - 1) * limit
-    return db.query(Note).order_by(Note.id).offset(offset).limit(limit).all()
+    query = db.query(Note)
+
+    if search:
+        query = query.filter(Note.title.ilike(f"%{search}%"))
+
+    return query.order_by(Note.id).offset(offset).limit(limit).all()
 
 
 def get_notes_by_user(db: Session, user_id: int, page: int, limit: int) -> list[Note]:
