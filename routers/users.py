@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from schemas.user import UserCreate, UserResponse
 from services import user_service
-from exceptions import DuplicateEmailError,UserNotFoundError
+from exceptions import DuplicateEmailError, UserNotFoundError
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -21,11 +21,11 @@ def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     - If duplicate → 409 Conflict
     - If all good → user gets created and returned
     """
-    
     try:
-        return user_service.create_user(db,user_data.email)
+        return user_service.create_user(db, user_data.email, user_data.password)
     except DuplicateEmailError:
-        raise HTTPException(status_code=409,detail="Email already exists")
+        raise HTTPException(status_code=409, detail="Email already exists")
+
 
 # ------------------------------
 # LIST USERS (PAGINATED)
@@ -60,7 +60,6 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     - If found → returns user data
     """
     try:
-        return user_service.get_user_by_id(db,user_id)
+        return user_service.get_user_by_id(db, user_id)
     except UserNotFoundError:
-        raise HTTPException(status_code=404,detail="User not found")
-    
+        raise HTTPException(status_code=404, detail="User not found")

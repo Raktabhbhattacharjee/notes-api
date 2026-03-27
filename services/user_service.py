@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 from models import User
 from exceptions import DuplicateEmailError, UserNotFoundError
+from services.auth_service import hash_password
 
-
-def create_user(db: Session, email: str) -> User:
+def create_user(db: Session, email: str, password: str) -> User:
     """
     Insert a new user into the DB.
 
@@ -17,7 +17,7 @@ def create_user(db: Session, email: str) -> User:
     if existing:
         raise DuplicateEmailError(f"Email already exists: {email}")
 
-    new_user = User(email=email)
+    new_user = User(email=email,hashed_password=hash_password(password))
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -48,3 +48,12 @@ def list_users(db: Session, page: int, limit: int) -> list[User]:
     """
     offset = (page - 1) * limit
     return db.query(User).order_by(User.id).offset(offset).limit(limit).all()
+
+
+def get_user_by_email(db: Session, email: str) -> User:
+    """
+    Fetch a single user by email.
+    - Translates to: SELECT * FROM users WHERE email = email LIMIT 1
+    - Returns User or None — caller decides what to do
+    """
+    return db.query(User).filter(User.email == email).first()
