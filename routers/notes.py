@@ -4,12 +4,14 @@ from database import get_db
 from schemas.note import NoteCreate, NoteResponse
 from services import note_service
 from exceptions import NoteNotFoundError,UserNotFoundError
+from dependencies import get_current_user
+from models.user import User
 
 router = APIRouter(prefix="/notes", tags=["Notes"])
 
 
 @router.post("/", status_code=201, response_model=NoteResponse)
-def create_note(note_data: NoteCreate, db: Session = Depends(get_db)):
+def create_note(note_data: NoteCreate, db: Session = Depends(get_db),current_user:User=Depends(get_current_user)):
     """
     Create a new note.
 
@@ -30,7 +32,8 @@ def list_notes(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    search:str|None=Query(None)
+    search:str|None=Query(None),
+    current_user:User=Depends(get_current_user)
 ):
     """
     Return paginated list of all notes.
@@ -42,7 +45,7 @@ def list_notes(
 
 
 @router.get("/{note_id}", response_model=NoteResponse)
-def get_note(note_id: int, db: Session = Depends(get_db)):
+def get_note(note_id: int, db: Session = Depends(get_db),current_user:User=Depends(get_current_user)):
     """
     Fetch a single note by ID.
 
@@ -61,5 +64,6 @@ def get_notes_by_user(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user:User=Depends(get_current_user)
 ):
     return note_service.get_notes_by_user(db, user_id, page, limit)
