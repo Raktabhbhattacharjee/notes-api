@@ -37,18 +37,14 @@ def get_note_by_id(db: Session, note_id: int) -> Note:
     return note
 
 
-def list_notes(db: Session, page: int, limit: int, search: str | None = None) -> list[Note]:
+def list_notes(db: Session, page: int, limit: int, search: str | None = None) -> dict:
     """
-    SELECT * FROM notes
-    WHERE title ILIKE '%search%'   -- only if search param is provided
-    ORDER BY id
-    LIMIT :limit OFFSET :offset;
-
-    - search is optional -- if not passed, returns all notes
-    - ILIKE means case insensitive, so 'quantum' matches 'Quantum Notes'
-    - offset = (page - 1) * limit calculated here
-    - query is built step by step -- filter only added if search exists
-    - Returns empty list if no rows -- not an error
+    Returns paginated notes with metadata.
+    
+    - Builds query first, applies search filter if provided
+    - Counts total BEFORE applying offset/limit
+    - has_next → more pages exist after this one
+    - has_prev → there is a page before this one
     """
     offset = (page - 1) * limit
     query = db.query(Note)
@@ -56,7 +52,17 @@ def list_notes(db: Session, page: int, limit: int, search: str | None = None) ->
     if search:
         query = query.filter(Note.title.ilike(f"%{search}%"))
 
-    return query.order_by(Note.id).offset(offset).limit(limit).all()
+    total = query.count()
+    notes = query.order_by(Note.id).offset(offset).limit(limit).all()
+
+    return {
+        "items": notes,
+        "total": total,
+        "page": page,
+        "has_next": (page * limit) < total,
+        "has_prev": page > 1
+    }
+    
 
 
 def get_notes_by_user(db: Session, user_id: int, page: int, limit: int) -> list[Note]:

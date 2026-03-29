@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from schemas.note import NoteCreate, NoteResponse
+from schemas.note import NoteCreate, NoteResponse,PaginatedNotes
 from services import note_service
 from exceptions import NoteNotFoundError,UserNotFoundError
 from dependencies import get_current_user
@@ -27,7 +27,7 @@ def create_note(note_data: NoteCreate, db: Session = Depends(get_db),current_use
         raise HTTPException(status_code=404, detail="User not found")
 
 
-@router.get("/", response_model=list[NoteResponse])
+@router.get("/", response_model=PaginatedNotes)
 def list_notes(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),

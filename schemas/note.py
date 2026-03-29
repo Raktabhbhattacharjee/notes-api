@@ -13,3 +13,13 @@ class NoteResponse(BaseModel):
     created_at: datetime
     owner_id: int
     model_config = ConfigDict(from_attributes=True)
+    
+
+
+
+class PaginatedNotes(BaseModel):
+    items: list[NoteResponse]
+    total: int
+    page: int
+    has_next: bool
+    has_prev: bool
